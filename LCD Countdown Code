@@ -1,0 +1,62 @@
+#include "liquidcrystal_i2c.h"
+
+// Assuming you've declared the HD44780 functions and library in the appropriate header files
+
+int main() {
+    // Initialize the display
+    HD44780_Init(2);
+    HD44780_Clear();
+    HD44780_SetCursor(0, 0);
+    HD44780_PrintStr("HELLO");
+    HD44780_SetCursor(10, 1);
+    HD44780_PrintStr("WORLD");
+    HAL_Delay(2000);
+
+    // Clear and print "HELLO" again
+    HD44780_Clear();
+    HD44780_SetCursor(0, 0);
+    HD44780_PrintStr("HELLO");
+    HAL_Delay(2000);
+   
+    // Turn off the backlight, then turn it on after a delay
+    HD44780_NoBacklight();
+    HAL_Delay(2000);
+    HD44780_Backlight();
+
+    // Delay and demonstrate cursor operations
+    HAL_Delay(2000);
+    HD44780_Cursor();
+    HAL_Delay(2000);
+    HD44780_Blink();
+    HAL_Delay(5000);
+    HD44780_NoBlink();
+    HAL_Delay(2000);
+    HD44780_NoCursor();
+    HAL_Delay(2000);
+
+    // Turn off the display and then turn it back on
+    HD44780_NoDisplay();
+    HAL_Delay(2000);
+    HD44780_Display();
+
+    // Print a string and scroll it
+    HD44780_Clear();
+    HD44780_SetCursor(0, 0);
+    HD44780_PrintStr("Learning STM32 with LCD is fun :-)");
+    for (int x = 0; x < 40; x++) {
+        HD44780_ScrollDisplayLeft();  // or HD44780_ScrollDisplayRight();
+        HAL_Delay(500);
+    }
+
+    // Print numbers from 1 to 200
+    char snum[5];
+    for (int x = 1; x <= 200; x++) {
+        itoa(x, snum, 10);
+        HD44780_Clear();
+        HD44780_SetCursor(0, 0);
+        HD44780_PrintStr(snum);
+        HAL_Delay(1000);
+    }
+
+    return 0;
+}
