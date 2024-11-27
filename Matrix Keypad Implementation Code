@@ -1,152 +1,455 @@
-#include "MY_Keypad4x4.h"
+/* Includes ------------------------------------------------------------------*/
 
-//***** Library variables *****//
-//1. Keypad pinout variable
-static Keypad_WiresTypeDef KeypadStruct;
-//2. OUT pins position, or pin number in decimal for use in colomn change function
-static uint8_t OutPositions[4];
-//
-static char *Keypad_keys[16] =
-{
-"1",
-"2",
-"3",
-"A",
-"4",
-"5",
-"6",
-"B",
-"7",
-"8",
-"9",
-"C",
-"*",
-"0",
-"#",
-"D"
+/* Register Definition File Header */
+
+#include "stm32f4xx.h"
+
+#include "main.h"
+
+
+
+/* Private function prototypes -----------------------------------------------*/
+
+void SystemClock_Config(void);
+
+static void MX_GPIO_Init(void);
+
+/* Password for SAFE
+
+*
+
+*/
+
+const char password[] = "1234"; // Set your password here
+
+char input_buffer[5] = ""; // Buffer for user input (4 characters + null terminator)
+
+uint8_t input_index = 0; // Tracks the current input position
+
+
+
+
+
+void LCD_init(void);
+
+void LCD_command(uint8_t value);
+
+void LCD_data(uint8_t value);
+
+void LCD_string(uint8_t *str);
+
+void Keys_Detect(void);
+
+
+
+/* Global Variables */
+
+uint16_t data_pins[8]; // LCD data pins
+
+const char keymap[4][4] = { // Keypad mapping
+
+{'1', '2', '3', 'A'},
+
+{'4', '5', '6', 'B'},
+
+{'7', '8', '9', 'C'},
+
+{'*', '0', '#', 'D'}
+
 };
 
-//***** Functions definition *****//
-//Function(1): Set Keypad pins and ports
-void Keypad4x4_Init(Keypad_WiresTypeDef  *KeypadWiringStruct)
-{
-//Step(1): Copy the Keypad wirings to the library
-KeypadStruct = *KeypadWiringStruct;
-//Step(2): Find the positions of the 4 OUT pins
-Keypad4x4_FindPins_positions();
-//Step(3): Initialise all pins to set all OUT pins to RESET
-KeypadStruct.OUT0_Port->OTYPER |= (1UL << OutPositions[0]);
-KeypadStruct.OUT1_Port->OTYPER |= (1UL << OutPositions[1]);
-KeypadStruct.OUT2_Port->OTYPER |= (1UL << OutPositions[2]);
-KeypadStruct.OUT3_Port->OTYPER |= (1UL << OutPositions[3]);
 
-HAL_GPIO_WritePin(KeypadStruct.OUT0_Port, KeypadStruct.OUT0pin, GPIO_PIN_SET);
-HAL_GPIO_WritePin(KeypadStruct.OUT1_Port, KeypadStruct.OUT1pin, GPIO_PIN_SET);
-HAL_GPIO_WritePin(KeypadStruct.OUT2_Port, KeypadStruct.OUT2pin, GPIO_PIN_SET);
-HAL_GPIO_WritePin(KeypadStruct.OUT3_Port, KeypadStruct.OUT3pin, GPIO_PIN_SET);
-}
-//Function(2): Get pin positions for colomn change use, only for out pins
-static void Keypad4x4_FindPins_positions(void)
-{
-uint8_t idx=0;
-for(idx=0; idx<16; idx++)
-{
-if(((KeypadStruct.OUT0pin>>idx)&0x0001) == 0x0001)
-{
-OutPositions[0] = idx;
-}
-if(((KeypadStruct.OUT1pin>>idx)&0x0001) == 0x0001)
-{
-OutPositions[1] = idx;
-}
-if(((KeypadStruct.OUT2pin>>idx)&0x0001) == 0x0001)
-{
-OutPositions[2] = idx;
-}
-if(((KeypadStruct.OUT3pin>>idx)&0x0001) == 0x0001)
-{
-OutPositions[3] = idx;
-}
-}
-}
-//Function(3): Change colomn number
-static void Keypad4x4_ChangeColomn(uint8_t colNum_0_to_3)
-{
-if(colNum_0_to_3==0)
-{
-//Set selected colomn
-KeypadStruct.OUT0_Port->OTYPER &= ~(1UL << OutPositions[0]);
 
-//Make other colomns floating
-KeypadStruct.OUT1_Port->OTYPER |= (1UL << OutPositions[1]);
-KeypadStruct.OUT2_Port->OTYPER |= (1UL << OutPositions[2]);
-KeypadStruct.OUT3_Port->OTYPER |= (1UL << OutPositions[3]);
-}
-else if(colNum_0_to_3==1)
-{
-//Set selected colomn
-KeypadStruct.OUT1_Port->OTYPER &= ~(1UL << OutPositions[1]);
+GPIO_TypeDef *row_ports[4] = {GPIOB, GPIOB, GPIOB, GPIOB};
 
-//Make other colomns floating
-KeypadStruct.OUT0_Port->OTYPER |= (1UL << OutPositions[0]);
-KeypadStruct.OUT2_Port->OTYPER |= (1UL << OutPositions[2]);
-KeypadStruct.OUT3_Port->OTYPER |= (1UL << OutPositions[3]);
-}
-else if(colNum_0_to_3==2)
-{
-//Set selected colomn
-KeypadStruct.OUT2_Port->OTYPER &= ~(1UL << OutPositions[2]);
+uint16_t row_pins[4] = {R1_Pin, R2_Pin, R3_Pin, R4_Pin};
 
-//Make other colomns floating
-KeypadStruct.OUT0_Port->OTYPER |= (1UL << OutPositions[0]);
-KeypadStruct.OUT1_Port->OTYPER |= (1UL << OutPositions[1]);
-KeypadStruct.OUT3_Port->OTYPER |= (1UL << OutPositions[3]);
-}
-else if(colNum_0_to_3==3)
-{
-//Set selected colomn
-KeypadStruct.OUT3_Port->OTYPER &= ~(1UL << OutPositions[3]);
+GPIO_TypeDef *col_ports[4] = {GPIOB, GPIOB, GPIOB, GPIOB};
 
-//Make other colomns floating
-KeypadStruct.OUT0_Port->OTYPER |= (1UL << OutPositions[0]);
-KeypadStruct.OUT1_Port->OTYPER |= (1UL << OutPositions[1]);
-KeypadStruct.OUT2_Port->OTYPER |= (1UL << OutPositions[2]);
-}
+uint16_t col_pins[4] = {C1_Pin, C2_Pin, C3_Pin, C4_Pin};
+
+
+
+/*****************************************************************************************************************************/
+
+
+
+int main(void)
+
+{
+
+HAL_Init();
+
+MX_GPIO_Init();
+
+
+
+// Initialize LCD data pins
+
+data_pins[0] = D0_Pin;
+
+data_pins[1] = D1_Pin;
+
+data_pins[2] = D2_Pin;
+
+data_pins[3] = D3_Pin;
+
+data_pins[4] = D4_Pin;
+
+data_pins[5] = D5_Pin;
+
+data_pins[6] = D6_Pin;
+
+data_pins[7] = D7_Pin;
+
+
+
+// Initialize LCD
+
+LCD_init();
+
+HAL_Delay(1000);
+
+
+
+// Display initial message
+
+LCD_string((uint8_t *)"Hello, Nvar!");
+
+HAL_Delay(1000);
+
+
+
+while (1)
+
+{
+
+// Detect keypad input
+
+Keys_Detect();
+
+HAL_Delay(100);
+
 }
 
-//Function(4): Read active keypad button
-void Keypad4x4_ReadKeypad(bool keys[16])
-{
-//Step(1): Make Col0 High and check the rows
-Keypad4x4_ChangeColomn(0);
-keys[0] = HAL_GPIO_ReadPin(KeypadStruct.IN0_Port, KeypadStruct.IN0pin);
-keys[4] = HAL_GPIO_ReadPin(KeypadStruct.IN1_Port, KeypadStruct.IN1pin);
-keys[8] = HAL_GPIO_ReadPin(KeypadStruct.IN2_Port, KeypadStruct.IN2pin);
-keys[12] = HAL_GPIO_ReadPin(KeypadStruct.IN3_Port, KeypadStruct.IN3pin);
-
-//Step(2): Make Col1 High and check the rows
-Keypad4x4_ChangeColomn(1);
-keys[1] = HAL_GPIO_ReadPin(KeypadStruct.IN0_Port, KeypadStruct.IN0pin);
-keys[5] = HAL_GPIO_ReadPin(KeypadStruct.IN1_Port, KeypadStruct.IN1pin);
-keys[9] = HAL_GPIO_ReadPin(KeypadStruct.IN2_Port, KeypadStruct.IN2pin);
-keys[13] = HAL_GPIO_ReadPin(KeypadStruct.IN3_Port, KeypadStruct.IN3pin);
-
-//Step(3): Make Col2 High and check the rows
-Keypad4x4_ChangeColomn(2);
-keys[2] = HAL_GPIO_ReadPin(KeypadStruct.IN0_Port, KeypadStruct.IN0pin);
-keys[6] = HAL_GPIO_ReadPin(KeypadStruct.IN1_Port, KeypadStruct.IN1pin);
-keys[10] = HAL_GPIO_ReadPin(KeypadStruct.IN2_Port, KeypadStruct.IN2pin);
-keys[14] = HAL_GPIO_ReadPin(KeypadStruct.IN3_Port, KeypadStruct.IN3pin);
-
-//Step(4): Make Col3 High and check the rows
-Keypad4x4_ChangeColomn(3);
-keys[3] = HAL_GPIO_ReadPin(KeypadStruct.IN0_Port, KeypadStruct.IN0pin);
-keys[7] = HAL_GPIO_ReadPin(KeypadStruct.IN1_Port, KeypadStruct.IN1pin);
-keys[11] = HAL_GPIO_ReadPin(KeypadStruct.IN2_Port, KeypadStruct.IN2pin);
-keys[15] = HAL_GPIO_ReadPin(KeypadStruct.IN3_Port, KeypadStruct.IN3pin);
 }
-//Function(5): Get character
-char* Keypad4x4_GetChar(uint8_t keypadSw)
+
+
+
+/*****************************************************************************************************************************/
+
+/* Keypad Detection */
+
+void Keys_Detect(void)
+
 {
-return Keypad_keys[keypadSw];
+
+for (int row = 0; row < 4; row++)
+
+{
+
+// Set current row high, others low
+
+for (int r = 0; r < 4; r++)
+
+{
+
+HAL_GPIO_WritePin(row_ports[r], row_pins[r], (r == row) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+}
+
+
+
+// Check columns for key press
+
+for (int col = 0; col < 4; col++)
+
+{
+
+if (HAL_GPIO_ReadPin(col_ports[col], col_pins[col]) == GPIO_PIN_SET)
+
+{
+
+char key = keymap[row][col]; // Get the key value from the keymap
+
+
+
+// Display pressed key on LCD
+
+LCD_data(key);
+
+
+
+if (key == '#') // Submit key
+
+{
+
+input_buffer[input_index] = '\0'; // Null-terminate the input
+
+
+
+if (strcmp(input_buffer, password) == 0) // Check password
+
+{
+
+LCD_command(0x01); // Clear display
+
+LCD_string((uint8_t *)"Access Granted");
+
+}
+
+else
+
+{
+
+LCD_command(0x01); // Clear display
+
+LCD_string((uint8_t *)"Access Denied");
+
+}
+
+
+
+HAL_Delay(2000); // Wait for 2 seconds
+
+LCD_command(0x01); // Clear display
+
+input_index = 0; // Reset input buffer
+
+}
+
+else if (key == '*') // Clear key
+
+{
+
+input_index = 0; // Reset input buffer
+
+LCD_command(0x01); // Clear display
+
+}
+
+else if (input_index < sizeof(input_buffer) - 1) // Add to buffer
+
+{
+
+input_buffer[input_index++] = key;
+
+}
+
+
+
+// Wait for key release
+
+while (HAL_GPIO_ReadPin(col_ports[col], col_pins[col]) == GPIO_PIN_SET);
+
+return;
+
+}
+
+}
+
+}
+
+}
+
+
+
+
+
+/*****************************************************************************************************************************/
+
+/* LCD Initialization */
+
+void LCD_init(void)
+
+{
+
+HAL_Delay(100); // Wait for LCD to power up
+
+LCD_command(0x30); // Wake up
+
+HAL_Delay(5); // Wait >4.1ms
+
+LCD_command(0x30); // Wake up again
+
+HAL_Delay(1); // Wait >100µs
+
+LCD_command(0x30); // Wake up again
+
+LCD_command(0x38); // Set 8-bit mode, 2-line, 5x8 font
+
+LCD_command(0x0C); // Display ON, Cursor OFF
+
+LCD_command(0x06); // Auto Increment Cursor
+
+LCD_command(0x01); // Clear Display
+
+HAL_Delay(2); // Wait for clear command
+
+}
+
+
+
+
+
+/*****************************************************************************************************************************/
+
+/* Send Command to LCD */
+
+void LCD_command(uint8_t value)
+
+{
+
+HAL_GPIO_WritePin(RS_GPIO_Port, RS_Pin, GPIO_PIN_RESET); // Command mode // Write mode
+
+
+
+for (int i = 0; i < 8; i++)
+
+{
+
+HAL_GPIO_WritePin(GPIOA, data_pins[i], ((value >> i) & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+}
+
+
+
+// Pulse the Enable pin
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(1);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_SET);
+
+HAL_Delay(1);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(2); // Commands need > 37us to settle
+
+}
+
+
+
+/*****************************************************************************************************************************/
+
+/* Send Data to LCD */
+
+void LCD_data(uint8_t value)
+
+{
+
+HAL_GPIO_WritePin(RS_GPIO_Port, RS_Pin, GPIO_PIN_SET); // Data mode
+
+HAL_GPIO_WritePin(RW_GPIO_Port, RW_Pin, GPIO_PIN_RESET); // Write mode
+
+
+
+for (int i = 0; i < 8; i++)
+
+{
+
+HAL_GPIO_WritePin(GPIOA, data_pins[i], ((value >> i) & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+}
+
+
+
+// Pulse the Enable pin
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(1);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_SET);
+
+HAL_Delay(2);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(2); // Commands need > 37us to settle
+
+}
+
+
+
+/*****************************************************************************************************************************/
+
+/* Display String on LCD */
+
+void LCD_string(uint8_t *str)
+
+{
+
+while (*str != '\0')
+
+{
+
+LCD_data(*str++);
+
+}
+
+}
+
+
+
+/*****************************************************************************************************************************/
+
+/* GPIO Initialization */
+
+static void MX_GPIO_Init(void)
+
+{
+
+GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+
+
+/* Enable GPIO Ports Clock */
+
+__HAL_RCC_GPIOA_CLK_ENABLE();
+
+__HAL_RCC_GPIOB_CLK_ENABLE();
+
+
+
+/* Configure GPIO pins: Data, RS, RW, EN */
+
+GPIO_InitStruct.Pin = D0_Pin | D1_Pin | D2_Pin | D3_Pin | D4_Pin | D5_Pin | D6_Pin | D7_Pin | RS_Pin | RW_Pin | EN_Pin;
+
+GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+
+GPIO_InitStruct.Pull = GPIO_NOPULL;
+
+GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+
+
+/* Configure GPIO pins: Row Pins */
+
+GPIO_InitStruct.Pin = R1_Pin | R2_Pin | R3_Pin | R4_Pin;
+
+GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+
+GPIO_InitStruct.Pull = GPIO_NOPULL;
+
+GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+
+
+/* Configure GPIO pins: Column Pins */
+
+GPIO_InitStruct.Pin = C1_Pin | C2_Pin | C3_Pin | C4_Pin;
+
+GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+
+GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+
+HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 }
