@@ -1,62 +1,469 @@
-#include "liquidcrystal_i2c.h"
+#include "main.h"
 
-// Assuming you've declared the HD44780 functions and library in the appropriate header files
 
-int main() {
-    // Initialize the display
-    HD44780_Init(2);
-    HD44780_Clear();
-    HD44780_SetCursor(0, 0);
-    HD44780_PrintStr("HELLO");
-    HD44780_SetCursor(10, 1);
-    HD44780_PrintStr("WORLD");
-    HAL_Delay(2000);
 
-    // Clear and print "HELLO" again
-    HD44780_Clear();
-    HD44780_SetCursor(0, 0);
-    HD44780_PrintStr("HELLO");
-    HAL_Delay(2000);
-   
-    // Turn off the backlight, then turn it on after a delay
-    HD44780_NoBacklight();
-    HAL_Delay(2000);
-    HD44780_Backlight();
+/* Global Variables */
 
-    // Delay and demonstrate cursor operations
-    HAL_Delay(2000);
-    HD44780_Cursor();
-    HAL_Delay(2000);
-    HD44780_Blink();
-    HAL_Delay(5000);
-    HD44780_NoBlink();
-    HAL_Delay(2000);
-    HD44780_NoCursor();
-    HAL_Delay(2000);
+uint16_t data_pins[8]; // LCD data pins
 
-    // Turn off the display and then turn it back on
-    HD44780_NoDisplay();
-    HAL_Delay(2000);
-    HD44780_Display();
+char input_buffer[10]; // Buffer to store user input (password)
 
-    // Print a string and scroll it
-    HD44780_Clear();
-    HD44780_SetCursor(0, 0);
-    HD44780_PrintStr("Learning STM32 with LCD is fun :-)");
-    for (int x = 0; x < 40; x++) {
-        HD44780_ScrollDisplayLeft();  // or HD44780_ScrollDisplayRight();
-        HAL_Delay(500);
-    }
+int input_index = 0; // Index for storing input
 
-    // Print numbers from 1 to 300
-    char snum[5];
-    for (int x = 1; x <= 300; x++) {
-        itoa(x, snum, 10);
-        HD44780_Clear();
-        HD44780_SetCursor(0, 0);
-        HD44780_PrintStr(snum);
-        HAL_Delay(1000);
-    }
+const char password[] = "1234"; // Password for validation
 
-    return 0;
+const char keymap[4][4] = { // Keypad mapping
+
+{'1', '2', '3', 'A'},
+
+{'4', '5', '6', 'B'},
+
+{'7', '8', '9', 'C'},
+
+{'*', '0', '#', 'D'}
+
+};
+
+GPIO_TypeDef *row_ports[4] = {GPIOB, GPIOB, GPIOB, GPIOB};
+
+uint16_t row_pins[4] = {R1_Pin, R2_Pin, R3_Pin, R4_Pin};
+
+GPIO_TypeDef *col_ports[4] = {GPIOB, GPIOB, GPIOB, GPIOB};
+
+uint16_t col_pins[4] = {C1_Pin, C2_Pin, C3_Pin, C4_Pin};
+
+
+
+uint8_t incorrect_attempts = 0; // Track incorrect password attempts
+
+
+
+/* Function Prototypes */
+
+void MX_GPIO_Init(void);
+
+void LCD_init(void);
+
+void LCD_command(uint8_t value);
+
+void LCD_data(uint8_t value);
+
+void LCD_string(uint8_t *str);
+
+void Keys_Detect(void);
+
+void Show_Countdown(uint16_t countdown);
+
+
+
+/* Main Function */
+
+int main(void)
+
+{
+
+HAL_Init();
+
+MX_GPIO_Init();
+
+
+
+// Initialize LCD data pins
+
+data_pins[0] = D0_Pin;
+
+data_pins[1] = D1_Pin;
+
+data_pins[2] = D2_Pin;
+
+data_pins[3] = D3_Pin;
+
+data_pins[4] = D4_Pin;
+
+data_pins[5] = D5_Pin;
+
+data_pins[6] = D6_Pin;
+
+data_pins[7] = D7_Pin;
+
+
+
+// Initialize LCD
+
+LCD_init();
+
+HAL_Delay(1000);
+
+
+
+// Display initial message
+
+LCD_string((uint8_t *)"Password:");
+
+HAL_Delay(1000);
+
+
+
+while (1)
+
+{
+
+// Detect keypad input
+
+Keys_Detect();
+
+HAL_Delay(100);
+
+}
+
+}
+
+
+
+/* Show Countdown */
+
+void Show_Countdown(uint16_t countdown)
+
+{
+
+char count_str[4]; // To display 3-digit countdown
+
+sprintf(count_str, "%d", countdown); // Convert countdown number to string
+
+
+
+LCD_command(0x01); // Clear display
+
+LCD_string((uint8_t *)"Locked for: ");
+
+LCD_string((uint8_t *)count_str); // Display the countdown
+
+HAL_Delay(1000); // Wait 1 second between countdown steps
+
+}
+
+
+
+/* Keypad Detection */
+
+void Keys_Detect(void)
+
+{
+
+for (int row = 0; row < 4; row++)
+
+{
+
+// Set current row high, others low
+
+for (int r = 0; r < 4; r++)
+
+{
+
+HAL_GPIO_WritePin(row_ports[r], row_pins[r], (r == row) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+}
+
+
+
+// Check columns for key press
+
+for (int col = 0; col < 4; col++)
+
+{
+
+if (HAL_GPIO_ReadPin(col_ports[col], col_pins[col]) == GPIO_PIN_SET)
+
+{
+
+char key = keymap[row][col]; // Get the key value from the keymap
+
+
+
+// Display pressed key on LCD
+
+LCD_data(key);
+
+
+
+// Check for submit key '#'
+
+if (key == '#')
+
+{
+
+input_buffer[input_index] = '\0'; // Null-terminate the input
+
+if (strcmp(input_buffer, password) == 0) // Check password
+
+{
+
+LCD_command(0x01); // Clear display
+
+LCD_string((uint8_t *)"Access Granted");
+
+incorrect_attempts = 0; // Reset incorrect attempts after correct password
+
+}
+
+else
+
+{
+
+LCD_command(0x01); // Clear display
+
+LCD_string((uint8_t *)"Access Denied");
+
+incorrect_attempts++; // Increment incorrect attempts
+
+}
+
+HAL_Delay(2000); // Wait for 2 seconds
+
+LCD_command(0x01); // Clear display
+
+input_index = 0; // Reset input buffer
+
+}
+
+else if (key == '*') // Clear key
+
+{
+
+input_index = 0; // Reset input buffer
+
+LCD_command(0x01); // Clear display
+
+}
+
+else if (input_index < sizeof(input_buffer) - 1) // Add to buffer
+
+{
+
+input_buffer[input_index++] = key;
+
+}
+
+
+
+// Wait for key release
+
+while (HAL_GPIO_ReadPin(col_ports[col], col_pins[col]) == GPIO_PIN_SET);
+
+return;
+
+}
+
+}
+
+}
+
+
+
+// If 3 incorrect attempts are made, start countdown
+
+if (incorrect_attempts >= 3)
+
+{
+
+uint16_t countdown = 300; // Set countdown to 300 seconds (5 minutes)
+
+while (countdown > 0)
+
+{
+
+Show_Countdown(countdown); // Show countdown on LCD
+
+countdown--;
+
+}
+
+incorrect_attempts = 0; // Reset incorrect attempts after countdown
+
+}
+
+}
+
+
+
+/* LCD Initialization */
+
+void LCD_init(void)
+
+{
+
+HAL_Delay(100); // Wait for LCD to power up
+
+LCD_command(0x30); // Wake up
+
+HAL_Delay(5); // Wait >4.1ms
+
+LCD_command(0x30); // Wake up again
+
+HAL_Delay(1); // Wait >100µs
+
+LCD_command(0x30); // Wake up again
+
+LCD_command(0x38); // Set 8-bit mode, 2-line, 5x8 font
+
+LCD_command(0x0C); // Display ON, Cursor OFF
+
+LCD_command(0x06); // Auto Increment Cursor
+
+LCD_command(0x01); // Clear Display
+
+HAL_Delay(2); // Wait for clear command
+
+}
+
+
+
+/* Send Command to LCD */
+
+void LCD_command(uint8_t value)
+
+{
+
+HAL_GPIO_WritePin(RS_GPIO_Port, RS_Pin, GPIO_PIN_RESET); // Command mode
+
+for (int i = 0; i < 8; i++)
+
+{
+
+HAL_GPIO_WritePin(GPIOA, data_pins[i], ((value >> i) & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+}
+
+
+
+// Pulse the Enable pin
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(1);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_SET);
+
+HAL_Delay(1);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(2); // Commands need > 37us to settle
+
+}
+
+
+
+/* Send Data to LCD */
+
+void LCD_data(uint8_t value)
+
+{
+
+HAL_GPIO_WritePin(RS_GPIO_Port, RS_Pin, GPIO_PIN_SET); // Data mode
+
+HAL_GPIO_WritePin(RW_GPIO_Port, RW_Pin, GPIO_PIN_RESET); // Write mode
+
+for (int i = 0; i < 8; i++)
+
+{
+
+HAL_GPIO_WritePin(GPIOA, data_pins[i], ((value >> i) & 0x01) ? GPIO_PIN_SET : GPIO_PIN_RESET);
+
+}
+
+
+
+// Pulse the Enable pin
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(1);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_SET);
+
+HAL_Delay(2);
+
+HAL_GPIO_WritePin(EN_GPIO_Port, EN_Pin, GPIO_PIN_RESET);
+
+HAL_Delay(2); // Commands need > 37us to settle
+
+}
+
+
+
+/* Display String on LCD */
+
+void LCD_string(uint8_t *str)
+
+{
+
+while (*str != '\0')
+
+{
+
+LCD_data(*str++);
+
+}
+
+}
+
+
+
+/* GPIO Initialization */
+
+void MX_GPIO_Init(void)
+
+{
+
+GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+
+
+/* Enable GPIO Ports Clock */
+
+__HAL_RCC_GPIOA_CLK_ENABLE();
+
+__HAL_RCC_GPIOB_CLK_ENABLE();
+
+
+
+/* Configure GPIO pins: Data, RS, RW, EN */
+
+GPIO_InitStruct.Pin = D0_Pin | D1_Pin | D2_Pin | D3_Pin | D4_Pin | D5_Pin | D6_Pin | D7_Pin | RS_Pin | RW_Pin | EN_Pin;
+
+GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+
+GPIO_InitStruct.Pull = GPIO_NOPULL;
+
+GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+
+
+/* Configure GPIO pins: Row Pins */
+
+GPIO_InitStruct.Pin = R1_Pin | R2_Pin | R3_Pin | R4_Pin;
+
+GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+
+GPIO_InitStruct.Pull = GPIO_NOPULL;
+
+GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+
+HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+
+
+/* Configure GPIO pins: Column Pins */
+
+GPIO_InitStruct.Pin = C1_Pin | C2_Pin | C3_Pin | C4_Pin;
+
+GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+
+GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+
+HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 }
