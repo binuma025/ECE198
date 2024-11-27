@@ -48,9 +48,9 @@ int main() {
         HAL_Delay(500);
     }
 
-    // Print numbers from 1 to 200
+    // Print numbers from 1 to 300
     char snum[5];
-    for (int x = 1; x <= 200; x++) {
+    for (int x = 1; x <= 300; x++) {
         itoa(x, snum, 10);
         HD44780_Clear();
         HD44780_SetCursor(0, 0);
