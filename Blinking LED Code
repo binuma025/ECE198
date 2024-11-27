@@ -1,178 +1,66 @@
-
- 
-
 #include "main.h"
-void SystemClock_Config(void);
 
+/* Function Prototypes */
+void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 
-int main(void)
+int main(void) {
+   /* MCU Initialization */
+   HAL_Init();
+   SystemClock_Config();
+   MX_GPIO_Init();
 
-{
+   while (1) {
+       /* Turn on LED on PA0, turn off LED on PA1 */
+       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);   // Turn ON LED connected to PA0
+       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET); // Turn OFF LED connected to PA1
+       HAL_Delay(1000);                                      // Wait 1 second
 
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-
-  HAL_Init();
-
-
-
- 
-  /* Configure the system clock */
-
-  SystemClock_Config();
-
-
-
-  /* Initialize all configured peripherals */
-
-  MX_GPIO_Init();
-
-  uint32_t startTime = HAL_GetTick();  // Store the start time
-
-  uint32_t blinkDuration = 5000;
-
-
-
-  /* Infinite loop */
-
-
-  while (1)
-
-   {
-
-
-     uint32_t currentTime = HAL_GetTick();  // Get the current time
-
-     if (currentTime - startTime < blinkDuration) {
-
-       HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);  // Toggle LED
-
-       HAL_Delay(500);  // Delay of 500 ms between toggles
-
-     } else {
-
-       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);  // Ensure LED is OFF after 5 seconds
-
-     }
-
+       /* Turn on LED on PA1, turn off LED on PA0 */
+       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET); // Turn OFF LED connected to PA0
+       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);   // Turn ON LED connected to PA1
+       HAL_Delay(1000);                                      // Wait 1 second
    }
-
 }
 
+/* GPIO Initialization */
+static void MX_GPIO_Init(void) {
+   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
+   /* Enable GPIOA Clock */
+   __HAL_RCC_GPIOA_CLK_ENABLE();
 
-void SystemClock_Config(void)
+   /* Configure PA0 and PA1 as Output */
+   GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1;
+   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP; // Push-pull mode
+   GPIO_InitStruct.Pull = GPIO_NOPULL;         // No pull-up or pull-down resistor
+   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-{
-
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
-
-
-  /** Configure the main internal regulator output voltage
-
-  */
-
-  __HAL_RCC_PWR_CLK_ENABLE();
-
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
-
-
-
-  /** Initializes the RCC Oscillators according to the specified parameters
-
-  * in the RCC_OscInitTypeDef structure.
-
-  */
-
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-
-  {
-
-    Error_Handler();
-
-  }
-
-
-
-  /** Initializes the CPU, AHB and APB buses clocks
-
-  */
-
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
-
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
-
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
-
-
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-
-  {
-
-    Error_Handler();
-
-  }
-
+   /* Set both LEDs to OFF initially */
+   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);
+   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 }
 
+/* System Clock Configuration */
+void SystemClock_Config(void) {
+   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-static void MX_GPIO_Init(void)
+   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+   RCC_OscInitStruct.PLL.PLLM = 4;
+   RCC_OscInitStruct.PLL.PLLN = 72;
+   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+   RCC_OscInitStruct.PLL.PLLQ = 4;
+   HAL_RCC_OscConfig(&RCC_OscInitStruct);
 
-{
-
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-
-  /* GPIO Ports Clock Enable */
-
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-
-
-
-  /*Configure GPIO pin Output Level */
-
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
-
-
-
-  /*Configure GPIO pin : PA1 */
-
-  GPIO_InitStruct.Pin = GPIO_PIN_1;
-
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-
-
-void Error_Handler(void)
-
-{
-
-  __disable_irq();
-
-
-
+   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+   HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2);
+}
